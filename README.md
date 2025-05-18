@@ -1,6 +1,10 @@
+> **Quick Start:** Jump to the [Start Here](#start-here) section for step-by-step setup instructions.
+
 # Supabase on DigitalOcean
 
 [Supabase](https://supabase.com/) is a backend-as-a-service platform built around the Postgres database, and is an Open Source alternative to Firebase. It can reduce time to market by providing a ready to use backend that includes a database with real time capabilities, authentication, object storage and edge functions. You can use Supabase as a service via their [managed offerings](https://supabase.com/pricing) or self-host it on your own server or on a cloud provider.
+
+If you want to jump to the start of the project, you can do so by following the [Start](#start-here) section. This will guide you through the steps to get a self-hosted Supabase instance up and running on DigitalOcean.
 
 ## Running Supabase on DigitalOcean
 
@@ -33,100 +37,237 @@ Supabase's auth component, `GoTrue`, requires the ability to send emails. As Dig
 
 At DigitalOcean [simplicity in all we DO](https://www.digitalocean.com/about) is one of our core values, and automating as much as possible of our processes enables us to achieve this. In this regard we will use [Packer](https://www.packer.io/) and [Terraform](https://www.terraform.io/) to automate the build and provision the resources.
 
-## Pre-requisites
+# Start here
 
-- [DigitalOcean](https://cloud.digitalocean.com/login) account (Haven't got one? Start your [free trail](https://try.digitalocean.com/freetrialoffer/) now and grab $200 in credits.);
-- [SendGrid](https://app.sendgrid.com/login/) account (You can [signup](https://signup.sendgrid.com/) for free);
-- [packer cli](https://developer.hashicorp.com/packer/tutorials/docker-get-started/get-started-install-cli);
-- [terraform cli](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli);
-- curl installed on your machine (if you are running a *nix or Mac OS there is a 99.9% chance of you already having this installed. For Windows users use [WSL](https://learn.microsoft.com/en-us/windows/wsl/install));
-- A Domain you own [added to DigitalOceans' Domain section](https://docs.digitalocean.com/products/networking/dns/how-to/add-domains/) and the nameservers in your chosen domain registrar pointed towards DigitalOceans' own NS records([docs](https://docs.digitalocean.com/tutorials/dns-registrars/)).
+## Table of Contents
+- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
+- [Step-by-Step Guide](#step-by-step-guide)
+  - [1. Clone the Repository](#1-clone-the-repository)
+  - [2. Configure Packer](#2-configure-packer)
+  - [3. Build the Droplet Snapshot](#3-build-the-droplet-snapshot)
+  - [4. Configure Terraform](#4-configure-terraform)
+  - [5. Deploy Infrastructure](#5-deploy-infrastructure)
+  - [6. Retrieve Credentials](#6-retrieve-credentials)
+- [Extra Information & Troubleshooting](#extra-information--troubleshooting)
+- [Credits](#credits)
 
-## The Manual Part
+---
 
-- Create a DigitalOcean API token with read/write permissions ([docs](https://docs.digitalocean.com/reference/api/create-personal-access-token/))
-- Create a DO Spaces access key and secret ([docs](https://docs.digitalocean.com/products/spaces/how-to/manage-access/#access-keys))
-- Create a Domain in DO and change nameservers in your domain registrar ([docs](https://docs.digitalocean.com/products/networking/dns/how-to/add-domains/))
-- Create an admin (full access) SendGrid API token ([docs](https://docs.sendgrid.com/for-developers/sending-email/brite-verify#creating-a-new-api-key))
-- (_Optional_) If using Terraform Cloud to manage your state file, create a [user API token](https://app.terraform.io/app/settings/tokens)
+## Prerequisites
+Before you begin, ensure you have the following:
 
-## The (Semi-)Automated Part
-_We're going to run some cli commands within our terminal which can be automated within a CI/CD process._
+- **DigitalOcean Account** ([Sign up](https://cloud.digitalocean.com/login))
+- **SendGrid Account** ([Sign up](https://signup.sendgrid.com/))
+- **Domain Name** (added to DigitalOcean DNS)
+  - To add your domain, go to the [DigitalOcean Domains dashboard](https://cloud.digitalocean.com/networking/domains), click "Add Domain," and follow the instructions. Make sure to update your domain registrar's nameservers to point to DigitalOcean. See the [official guide](https://docs.digitalocean.com/products/networking/dns/how-to/add-domains/) for step-by-step help.
+- **Packer CLI** ([Install guide](https://developer.hashicorp.com/packer/tutorials/docker-get-started/get-started-install-cli))
+- **Terraform CLI** ([Install guide](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli))
+- **curl** (usually pre-installed on Linux/macOS)
 
-Once we've setup and created all of the above, clone the repository:
-```bash
+> **Have you completed all prerequisites above?**
+> Only continue if you have created your accounts, set up your domain in DigitalOcean DNS, and installed the required tools.
+
+---
+
+## Quick Start
+1. **Clone the repository**
+2. **Configure Packer variables**
+3. **Build the snapshot**
+4. **Configure Terraform variables**
+5. **Deploy with Terraform**
+6. **Access your Supabase instance**
+
+---
+
+## Step-by-Step Guide
+
+### 1. Clone the Repository
+```sh
 git clone https://github.com/digitalocean/supabase-on-do.git
 cd supabase-on-do
 ```
 
-1. After cloning the repo, our next step is to build a snapshot of the Droplet we will be running, by following the documentation in the [packer directory](./packer).
-2. Finally we will deploy our resources using terraform as specified [here](./terraform).
-
-## _TLDR_
-_Or the - I didn't want to read the next sections, just give me the commands to run, I trust you - version_
-
-### Run Packer to create the Snapshot
-
-```bash
-## From the root of the repository change directory to the packer directory
+### 2. Configure Packer
+```sh
 cd packer
-
-## Copy the example file to supabase.auto.pkrvars.hcl, modify it with your own variables and save
 cp supabase.auto.pkrvars.hcl.example supabase.auto.pkrvars.hcl
+# Edit supabase.auto.pkrvars.hcl with your DigitalOcean API token and region
 ```
 
-```bash
-## Initialise packer to download any plugin binaries needed
-packer init .
+In `supabase.auto.pkrvars.hcl`, you must set at least the following variables:
 
-## Build the snapshot and upload it as a Snapshot on DO
+```hcl
+############
+# IMP. The below token should not be stored in version control
+############
+do_token = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+## REQUIRED ##
+region = "ams3"
+
+## OPTIONAL ##
+# droplet_image = ""
+# droplet_size  = ""
+# tags          = [""]
+```
+
+- Replace `do_token` with your DigitalOcean API token.
+- Set `region` to your chosen region (e.g., `nyc3`, `sfo3`, etc.).
+- Optionally, adjust `droplet_image`, `droplet_size`, and `tags` as needed.
+
+- **Get your DigitalOcean API token:** [Create here](https://docs.digitalocean.com/reference/api/create-personal-access-token/)
+- **Recommended region:** e.g., `nyc3`, `sfo3`, etc.
+  - To see all available regions, you can install the [doctl CLI](https://docs.digitalocean.com/reference/doctl/how-to/install/) and run:
+    ```sh
+    doctl compute region list
+    ```
+  - For best performance, use the same region for both your Supabase instance and any apps that will connect to it. (Not required, but recommended.)
+
+### 3. Build the Droplet Snapshot
+
+> **Note:** If you get errors about the Packer version, open `packer/supabase.pkr.hcl` and update the `required_version` field to match your installed Packer version. For major version changes (e.g., 1 → 2), check the [Packer documentation](https://developer.hashicorp.com/packer/docs) for breaking changes.
+
+```sh
+packer init .
 packer build .
 ```
 
-### Run Terraform to create the resources
-
-```bash
-## From the root of the repository change directory to the terraform directory
-## (from the packer directory  use ../terraform)
-cd terraform
-
-## Copy the example file to terraform.tfvars, modify it with your own variables and save
+### 4. Configure Terraform
+```sh
+cd ../terraform
 cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars with your variables (see comments in the file)
 ```
 
-```bash
-## Initialise terraform to download any plugin binaries needed
+In `terraform.tfvars`, you must set at least the following variables:
+
+```hcl
+## REQUIRED SECRETS ##
+############
+# IMP. The below secrets/tokens/apis should not be stored in version control
+############
+do_token                 = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+sendgrid_api             = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+spaces_access_key_id     = "xxxxxxxxxxxxxxxxxxxx"
+spaces_secret_access_key = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+## REQUIRED ##
+region    = "ams3"
+domain    = "example.com"
+timezone  = "Europe/Amsterdam"
+auth_user = "admin"
+site_url  = "app.example.com"
+
+smtp_admin_user = "admin@example.com"
+smtp_addr       = "Company Address"
+smtp_city       = "Company City"
+smtp_country    = "Company Country"
+
+## OPTIONAL ##
+# droplet_image        = ""
+# droplet_size         = ""
+# droplet_backups      = false
+# ssh_pub_file         = ""
+# ssh_keys             = [12345678, 87654321]
+# tags                 = ["admin", "tim"]
+# volume_size          = 100
+# enable_ssh           = true
+# ssh_ip_range         = ["your-own-ip", "office-ip/24"]
+# enable_db_con        = false
+# db_ip_range          = ["your-own-ip", "office-ip/24"]
+# spaces_restrict_ip   = true
+# studio_org           = ""
+# studio_project       = ""
+# smtp_host            = ""
+# smtp_port            = ""
+# smtp_user            = ""
+# smtp_sender_name     = ""
+# smtp_addr_2          = ""
+# smtp_state           = ""
+# smtp_zip_code        = ""
+# smtp_sender_reply_to = ""
+# smtp_nickname        = ""
+```
+
+- Replace all secrets/tokens with your actual credentials.
+- Set `region` to your chosen region (e.g., `nyc3`, `sfo3`, etc.).
+- Set `domain` to your own domain (e.g., `example.com`).
+- Set `site_url` to your app's URL. **Recommended:** use a `supabase.` prefix, e.g., `supabase.example.com`.
+- Set `timezone` to your local timezone (e.g., `Europe/Amsterdam`). You can find your timezone in this format at [TimeZoneDB](https://timezonedb.com/time-zones) or [List of tz database time zones](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones).
+- Set `auth_user` and SMTP fields as needed for your setup.
+- In the OPTIONAL section, consider setting `ssh_ip_range` and `db_ip_range` to restrict SSH and database access to your own IPs for better security.
+
+- **Get your SendGrid API key:** [Create here](https://docs.sendgrid.com/for-developers/sending-email/brite-verify#creating-a-new-api-key)
+- **Add your domain to DigitalOcean DNS:** [Guide](https://docs.digitalocean.com/products/networking/dns/how-to/add-domains/)
+
+### 5. Deploy Infrastructure
+> **Note:** If you get errors about the Terraform version, open `terraform/provider.tf` and update the `required_version` field to match your installed Packer version. For major version changes (e.g., 1 → 2), check the [Terraform documentation](https://developer.hashicorp.com/terraform/docs) for breaking changes.
+
+```sh
 terraform init
-
-## Create and show a plan of what will be created
-## (skip if you want to apply immediately)
-terraform plan
-
-## Apply the changes specified by confirming at the prompt
-## (--auto-approve if you're feeling adventures)
 terraform apply
+# Confirm at the prompt (or use --auto-approve for automation)
+```
 
-## Apply again to verify the SendGrid components
-## (needed as they are created before the domain records in DO)
+> **Important:** You must run `terraform apply` a second time after the first apply completes. This is required because some resources (like SendGrid components) depend on DNS records that are only created during the first run. Running it twice ensures all resources are fully provisioned and configured correctly.
+
+```sh
 terraform apply
 ```
 
-### Show generated passwords and tokens for later use
+### 6. Retrieve Credentials
 
-```bash
-## Show the generated auth password
-terraform output htpasswd
+After running `terraform apply` (twice), you will need to retrieve the credentials generated for your Supabase instance:
 
-## Show the generated psql password
-terraform output psql_pass
-
-## Show the generated jwt secret and tokens
-terraform output jwt
-terraform output jwt_anon
-terraform output jwt_service_role
-
+**1. Get your credentials:**
+```sh
+terraform output htpasswd         # Basic auth password
+terraform output psql_pass        # PostgreSQL password
+terraform output jwt              # JWT secret
+terraform output jwt_anon         # JWT anon token
+terraform output jwt_service_role # JWT service role token
 ```
 
-Take a **5-10 min** break and after that point your browser to `supabase.${your-domain}`. When the pop-up asking for your auth details appears enter your provided username and the generated htpasswd.
+**2. Access your Supabase instance:**
+- Open your browser and go to: `https://supabase.<your-domain>`
+- When prompted for authentication:
+  - **Username:** Use the `auth_user` value you set in step 4 (`terraform.tfvars`).
+  - **Password:** Use the value from `terraform output htpasswd` above.
 
-Enjoy and Happy creating :)
+**3. Understanding the JWT outputs:**
+- `jwt_anon` and `jwt_service_role`:
+  - These are the keys you will use to connect external services (such as n8n, backend apps, etc.) to your Supabase instance.
+  - Use `jwt_anon` for anonymous access and `jwt_service_role` for service-level access.
+- `jwt`:
+  - This is your Supabase JWT secret. **It is highly sensitive!**
+  - Do not share this secret or store it in any insecure location. Keep it private and secure at all times.
+
+---
+
+## Extra Information & Troubleshooting
+
+- **Why SendGrid?** DigitalOcean blocks port 25, so SendGrid is used for email delivery.
+- **Docker Compose** is used to run all Supabase components, including Kong, GoTrue, PostgREST, Realtime, Storage, postgres-meta, PostgreSQL, and SWAG (for SSL and reverse proxy).
+- **Packer** builds a custom Droplet image with all dependencies.
+- **Terraform** provisions the Droplet, storage, networking, and configures DNS.
+- **Domain Setup:** Make sure your domain's nameservers point to DigitalOcean.
+- **Common Issues:**
+  - API tokens missing or incorrect: Double-check your `.hcl` and `.tfvars` files.
+  - DNS not propagating: Wait a few minutes or check your registrar's settings.
+  - For more help, see the [official Supabase self-hosting docs](https://supabase.com/docs/guides/self-hosting) or [DigitalOcean documentation](https://docs.digitalocean.com/).
+
+---
+
+## Credits
+- [Supabase](https://supabase.com/)
+- [DigitalOcean](https://www.digitalocean.com/)
+- [SendGrid](https://sendgrid.com/)
+- [Packer](https://www.packer.io/)
+- [Terraform](https://www.terraform.io/)
+
+README rewrite by [J-Pster](https://github.com/J-Pster)
+
+---
+
+Enjoy your self-hosted Supabase instance on DigitalOcean!

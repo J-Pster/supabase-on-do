@@ -1,5 +1,7 @@
+# If you are getting erros with the packer version, please check the version of packer you are using (packer --version) and change the version below to the one you are using.
+# But, if you version is a major update, so, 1 -> 2 or 2 -> 3, please check the packer documentation to see if there are any breaking changes.
 packer {
-  required_version = "~> 1.9.1"
+  required_version = "~> 1.12.0"
 
   required_plugins {
     digitalocean = {
@@ -22,10 +24,11 @@ variable "region" {
   type        = string
 }
 
+# Fixed droplet image for Supabase
 variable "droplet_image" {
   description = "The Droplet image ID or slug. This could be either image ID or droplet snapshot ID."
   type        = string
-  default     = "ubuntu-22-10-x64"
+  default     = "ubuntu-22-04-x64"
 }
 
 variable "droplet_size" {
